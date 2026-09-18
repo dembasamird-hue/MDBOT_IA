@@ -1,95 +1,115 @@
-# Bot Discord IA (Claude)
+# Bot Discord complet
 
-Un bot qui discute avec les membres de ton serveur en utilisant l'IA Claude. Répond quand on le mentionne, en DM, ou dans un salon dédié — avec mémoire de conversation.
+Bot tout-en-un : chat IA, modération automatique + manuelle, logs, bienvenue/départ, rôle auto, tickets, niveaux/XP, économie, sondages, suggestions, giveaways, salons vocaux temporaires, et système de MP staff (`/mp`, `/mpall`). Tout se configure directement depuis Discord avec des commandes `/`.
 
 ## 1. Créer le bot sur Discord
 
-1. Va sur https://discord.com/developers/applications → **New Application**.
-2. Onglet **Bot** → **Reset Token** → copie le token (tu en auras besoin).
-3. Toujours dans **Bot**, active **Message Content Intent** (obligatoire, sinon le bot ne lit pas les messages).
-4. Onglet **OAuth2 > URL Generator** :
-   - Scopes : `bot`
-   - Permissions : `Send Messages`, `Read Message History`, `View Channels`
-   - Copie le lien généré, ouvre-le, choisis ton serveur pour inviter le bot.
+1. https://discord.com/developers/applications → **New Application**
+2. Onglet **Bot** → **Reset Token** → copie-le (tu en auras besoin)
+3. Toujours dans **Bot**, active les 3 toggles suivants (obligatoires) :
+   - **Message Content Intent**
+   - **Server Members Intent** (nécessaire pour `/mpall` et le rôle automatique)
+   - **Presence Intent** (optionnel mais recommandé)
+4. Onglet **General Information** → copie l'**Application ID** (c'est ton `CLIENT_ID`)
+5. Onglet **OAuth2 > URL Generator** :
+   - Scopes : `bot`, `applications.commands`
+   - Permissions : **Administrator** (le plus simple vu le nombre de fonctionnalités — sinon il faut cocher manuellement Manage Messages, Kick/Ban Members, Moderate Members, Manage Channels, Manage Roles, Send Messages, etc.)
+   - Copie le lien, ouvre-le, invite le bot sur ton serveur
 
-## 2. Récupérer une clé API Gemini (gratuite)
+## 2. Créer une base de données gratuite (MongoDB Atlas)
 
-1. Va sur https://aistudio.google.com/apikey
-2. Connecte-toi avec un compte Google → **Create API key**
-3. Aucune carte bancaire requise. Attention : tant que tu ne payes pas, Google peut utiliser tes échanges pour améliorer ses modèles — évite d'y mettre des infos sensibles.
-4. Les limites gratuites tournent autour de 10-15 requêtes/minute selon le modèle, ce qui est largement suffisant pour un bot de serveur perso.
+Le bot a besoin d'une vraie base de données pour que les avertissements, niveaux, économie et configs ne disparaissent pas à chaque redémarrage.
 
-## 3. Configuration locale
+1. Va sur https://cloud.mongodb.com → crée un compte gratuit (aucune carte bancaire requise)
+2. **Build a Database** → choisis **M0 Free**
+3. Crée un utilisateur (nom + mot de passe) — garde-les de côté
+4. Dans **Network Access**, ajoute `0.0.0.0/0` (autoriser toutes les IP — nécessaire car Render change d'IP)
+5. Dans **Database > Connect > Drivers**, copie l'URI de connexion, il ressemble à :
+   `mongodb+srv://utilisateur:motdepasse@cluster0.xxxxx.mongodb.net/discordbot`
+   Remplace `motdepasse` par ton vrai mot de passe.
+
+## 3. Récupérer la clé Gemini (gratuite)
+
+https://aistudio.google.com/apikey → connecte-toi avec Google → **Create API key**
+
+## 4. Configuration
 
 ```bash
 npm install
 cp .env.example .env
-# puis remplis .env avec ton DISCORD_TOKEN et ta GEMINI_API_KEY
+# remplis .env avec DISCORD_TOKEN, CLIENT_ID, GEMINI_API_KEY, MONGODB_URI
+npm run deploy   # enregistre les commandes / auprès de Discord (à refaire à chaque ajout de commande)
 npm start
 ```
 
-## 4. Déployer sur Render (comme MDBOT)
+## 5. Déployer sur Render
 
-1. Pousse ce dossier sur un repo GitHub.
-2. Sur Render → **New > Web Service** → connecte le repo.
-3. Build command : `npm install`
-4. Start command : `npm start`
-5. Ajoute les variables d'environnement (`DISCORD_TOKEN`, `GEMINI_API_KEY`, `GEMINI_MODEL`, etc.) dans l'onglet **Environment**.
-6. Une fois déployé, copie l'URL Render et ajoute-la dans **UptimeRobot** (ping toutes les 5 min) pour éviter que le service ne s'endorme — exactement comme pour MDBOT.
+1. Pousse tout le dossier sur GitHub (comme pour la version précédente)
+2. Render → **New > Web Service** → connecte le repo
+3. **Runtime** : Node
+4. **Build Command** : `npm install`
+5. **Start Command** : `npm start`
+6. Variables d'environnement à ajouter (**Environment**) : `DISCORD_TOKEN`, `CLIENT_ID`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `MONGODB_URI`
+7. Une fois déployé, ouvre le **Shell** de Render (menu de gauche) et lance une fois :
+   ```
+   node deploy-commands.js
+   ```
+   Ça enregistre toutes les commandes `/` auprès de Discord (nécessaire une seule fois, ou après ajout d'une nouvelle commande).
+8. Ajoute l'URL Render dans **UptimeRobot** (ping toutes les 5 min) comme avant, pour éviter que le service ne s'endorme.
 
-## Personnaliser le comportement
+## Liste des commandes
 
-- **`SYSTEM_PROMPT`** (dans `.env`) : change la personnalité du bot (ex: assistant de la communauté SAMIR D FILMS, expert science, modérateur sympa, etc.)
-- **`ALLOWED_CHANNEL_ID`** : mets l'ID d'un salon si tu veux que le bot réponde à *tous* les messages de ce salon sans être mentionné.
-- **`MAX_HISTORY`** (dans `index.js`) : nombre de messages gardés en mémoire par salon.
-- **`GEMINI_MODEL`** : `gemini-3.1-flash-lite` si tu veux le plus rapide/économique, `gemini-3-flash` pour un bon équilibre qualité/vitesse.
+### Modération
+- `/ban @membre [raison]`
+- `/kick @membre [raison]`
+- `/timeout @membre <minutes> [raison]` (0 minute = retirer le timeout)
+- `/warn @membre <raison>`
+- `/warnings @membre`
+- `/clear <nombre>`
 
-## Modération automatique (nouveau)
+### Configuration (réservé Manage Server)
+- `/setup-logs #salon`
+- `/setup-welcome #salon [message]`
+- `/setup-leave #salon [message]`
+- `/setup-autorole @role`
+- `/setup-tempvoice #salon-vocal`
+- `/setup-ticket #categorie @role-staff #salon-panel [#salon-logs]`
 
-Le bot agit maintenant comme un vrai modérateur :
+### Tickets
+- Bouton "Créer un ticket" posté par `/setup-ticket`
+- `/close-ticket` ou le bouton "Fermer le ticket" dans le salon
 
-**Détection automatique** (supprime le message + sanctionne) :
-- Insultes / mots interdits (liste dans `BAD_WORDS`)
-- Liens et invitations Discord non autorisés
-- Spam de mentions (plus de 5 mentions dans un message)
-- Flood de MAJUSCULES
-- Spam de messages (plus de 5 messages en 6 secondes)
+### Niveaux
+- `/rank [@membre]`
+- `/leaderboard`
 
-**Sanctions progressives** (par personne, remises à zéro si le bot redémarre) :
-1. et 2. avertissement → message d'avertissement en DM
-3. avertissement → timeout (mise en sourdine) 10 min
-4. avertissement → timeout 1h
-5. avertissement → expulsion (kick)
+### Économie
+- `/balance [@membre]`
+- `/daily`
+- `/work`
+- `/pay @membre <montant>`
+- `/richest`
 
-**Commandes manuelles** (préfixe `!`, réservées aux membres avec les bonnes permissions Discord) :
-- `!warn @membre raison` — avertir
-- `!warnings @membre` — voir ses avertissements
-- `!mute @membre [minutes]` — mise en sourdine
-- `!unmute @membre` — retirer la sourdine
-- `!kick @membre raison` — expulser
-- `!ban @membre raison` — bannir
-- `!clear 10` — supprimer 10 messages
-- `!modhelp` — voir la liste des commandes
+### Communauté
+- `/poll <question> <option1> <option2> [option3] [option4]`
+- `/suggest <texte>`
+- `/giveaway <prix> <durée_minutes> <gagnants>` (réservé staff)
 
-### Permissions à ajouter au bot
+### Staff
+- `/mp @membre <message>` — MP individuel au nom du serveur
+- `/mpall <message>` — MP à tous les membres (réservé Administrateur, peut prendre du temps sur un gros serveur)
 
-Le bot a besoin de nouvelles permissions Discord pour pouvoir sanctionner. Il faut **regénérer le lien d'invitation** et **réinviter le bot** :
+## Comportement automatique
 
-1. Va sur https://discord.com/developers/applications → ton application → **OAuth2 > URL Generator**
-2. Scope : `bot`
-3. Permissions à cocher en plus des précédentes :
-   - **Manage Messages** (supprimer messages / clear)
-   - **Moderate Members** (timeout/mute)
-   - **Kick Members**
-   - **Ban Members**
-4. Ouvre le lien généré et choisis ton serveur — Discord va simplement mettre à jour les permissions du bot déjà présent (pas besoin de le retirer avant).
+- **Chat IA** : répond quand on le mentionne, en DM, ou en réponse à un de ses messages
+- **Auto-modération** : supprime automatiquement insultes, liens non autorisés, spam de mentions, flood de majuscules, spam de messages — avec avertissements progressifs (1-2 = DM, 3 = timeout 10 min, 4 = timeout 1h, 5+ = kick)
+- **XP** : chaque message donne 15-25 XP (cooldown 60s), annonce en salon au passage de niveau
+- **Bienvenue/départ** : message automatique + rôle auto si configurés
+- **Salons vocaux temporaires** : rejoindre le salon configuré crée un salon perso, supprimé quand il se vide
+- **Giveaways** : se terminent automatiquement à l'heure prévue, gagnant(s) tiré(s) parmi les réactions 🎉
 
-### Variables d'environnement optionnelles (à ajouter sur Render si tu veux personnaliser)
+## Notes importantes
 
-- `MOD_PREFIX` : préfixe des commandes (par défaut `!`)
-- `MOD_LOG_CHANNEL_ID` : ID d'un salon où le bot poste un rapport de chaque sanction
-- `BAD_WORDS` : liste de mots interdits séparés par des virgules (remplace la liste par défaut)
-
-## Fusionner avec MDBOT
-
-Comme MDBOT tourne déjà sur Discord.js v14 + Render, tu peux copier le contenu du `messageCreate` de `index.js` directement dans ton bot existant plutôt que de déployer un second service — ça t'évite un abonnement Render en plus.
+- Les anciens fichiers (`index.js` en un seul bloc, commandes `!`) sont remplacés par cette version en plusieurs fichiers avec des commandes `/`. Ne mélange pas les deux.
+- Si tu ajoutes ou modifies une commande, il faut relancer `node deploy-commands.js` (en local ou via le Shell Render) pour que Discord la reconnaisse.
+- `Server Members Intent` doit être activé sur le Developer Portal, sinon `/mpall` et le rôle automatique ne fonctionneront pas.
